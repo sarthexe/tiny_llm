@@ -33,3 +33,13 @@ data = torch.tensor(encoded, dtype=torch.long)
 print("Tensor:")
 print(data)
 
+
+block_size = 8
+
+x = data[:block_size]
+
+y = data[1:block_size+1]
+
+print(x)
+print(y)
+
