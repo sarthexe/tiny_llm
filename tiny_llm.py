@@ -43,3 +43,18 @@ y = data[1:block_size+1]
 print("Input:", x)
 print("Target:", y)
 
+
+for i,_ in enumerate(x):
+    ans = x[:i+1]
+    dec_ans = ''.join(itos[token.item()] for token in ans)
+
+    tar = y[i]
+    dec_tar = itos[tar.item()]
+
+    print("Context:", repr(dec_ans))
+    print("Target:", repr(dec_tar))
+    print()
+    
+
+
+
