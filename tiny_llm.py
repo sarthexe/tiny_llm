@@ -40,6 +40,6 @@ x = data[:block_size]
 
 y = data[1:block_size+1]
 
-print(x)
-print(y)
+print("Input:", x)
+print("Target:", y)
 
