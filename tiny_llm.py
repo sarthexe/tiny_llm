@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+
 
 text = """
 the cat sat on the mat.
@@ -55,6 +57,13 @@ for i,_ in enumerate(x):
     print("Target:", repr(dec_tar))
     print()
     
+#embedding layer
+vocab_size = len(chars)
 
+n_embd = 16
 
+embedding = nn.Embedding(vocab_size,n_embd)
 
+print(x)
+print(embedding(x))
+print(embedding(x).shape)
