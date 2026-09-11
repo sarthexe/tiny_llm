@@ -66,9 +66,9 @@ embedding = nn.Embedding(vocab_size,n_embd)
 
 token_embedding = embedding(x)
 
-print(x)
-print(token_embedding)
-print(token_embedding.shape)
+# print(x)
+# print(token_embedding)
+# print(token_embedding.shape)
 
 #positional embeddings
 pos_id = torch.arange(block_size)
@@ -80,9 +80,9 @@ position_embeddings = pos_emb(pos_id)
 #final embedding  =  tokens embedding + positional Embeddings
 final_emb = token_embedding + position_embeddings
 
-print("Token Embedding Shape:" ,token_embedding.shape)
-print("Positional Embedding Shape:",position_embeddings.shape)
-print("Final Embedding Shape:",final_emb.shape)
+# print("Token Embedding Shape:" ,token_embedding.shape)
+# print("Positional Embedding Shape:",position_embeddings.shape)
+# print("Final Embedding Shape:",final_emb.shape)
 
 #self attention
 num_heads = 4
@@ -134,7 +134,7 @@ print("Attention Output's shape: \n", attention_output.shape)
 
 
 class Head(nn.Module):
-    def __init__(self, head_size,n_embd):
+    def __init__(self, head_size,n_embd): 
         super().__init__()
         self.head_size = head_size
         self.key = nn.Linear(n_embd, head_size,bias=False)
@@ -191,4 +191,57 @@ class MultiHeadAttention(nn.Module):
 
 
 
-    
+class FeedForward(nn.Module):
+    def __init__(self, n_embd):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_embd,4*n_embd),
+            nn.ReLU(),
+            nn.Linear(4*n_embd,n_embd)
+        )
+
+    def forward(self,x):
+        return self.net(x)
+
+class Block(nn.Module):
+    def __init__(self, n_embd , num_heads):
+        super().__init__()
+        head_size = n_embd//num_heads
+        self.attention = MultiHeadAttention(num_heads,head_size,n_embd)
+        self.feed_forward = FeedForward(n_embd)
+
+
+    def forward(self,x):
+        x = x + self.attention(x)
+        x = x + self.feed_forward(x)
+
+        return x
+
+
+class TinyLLM(nn.Module):
+    def __init__(self, vocab_size,n_embd,num_heads):
+        super().__init__()
+        self.block_size = 8
+        self.token_embedding = nn.Embedding(vocab_size,n_embd)
+        self.position_embedding = nn.Embedding(self.block_size,n_embd)
+        self.transformer = Block(n_embd,num_heads) 
+        self.lm_head = nn.Linear(n_embd,vocab_size)
+
+
+    def forward(self,x):
+        token_emb = self.token_embedding(x)
+        pos_id = torch.arange(len(x),device=x.device)
+        pos_emb = self.position_embedding(pos_id)
+        final_emb = token_emb + pos_emb
+
+        trans = self.transformer(final_emb)
+        logits = self.lm_head(trans)
+
+        return logits
+
+
+model = TinyLLM(vocab_size,n_embd,num_heads)
+logits = model(x)
+
+print("Logits: \n",logits)
+print("Logits shape: \n",logits.shape)
