@@ -70,14 +70,33 @@ print(x)
 print(token_embedding)
 print(token_embedding.shape)
 
+#positional embeddings
 pos_id = torch.arange(block_size)
 
 pos_emb = nn.Embedding(block_size,n_embd)
 
 position_embeddings = pos_emb(pos_id)
 
+#final embedding  =  tokens embedding + positional Embeddings
 final_emb = token_embedding + position_embeddings
 
-print(token_embedding.shape)
-print(position_embeddings.shape)
-print(final_emb.shape)
+print("Token Embedding Shape:" ,token_embedding.shape)
+print("Positional Embedding Shape:",position_embeddings.shape)
+print("Final Embedding Shape:",final_emb.shape)
+
+#self attention
+head_size = 16
+query = nn.Linear(n_embd, head_size, bias=False)
+key = nn.Linear(n_embd, head_size, bias=False)
+value = nn.Linear(n_embd, head_size, bias=False)
+
+
+q = query(final_emb)
+k = key(final_emb)
+v = value(final_emb)
+
+print("Q:",q.shape)
+print("K:",k.shape)
+print("V:",v.shape)
+
+
