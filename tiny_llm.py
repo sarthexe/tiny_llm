@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 
 text = """
 the cat sat on the mat.
@@ -117,5 +117,10 @@ masked_attention_score = attention_score.masked_fill(
     causal_mask == 0,
     float('-inf')
 )
-
 print("masked attention score: \n", masked_attention_score)
+
+#Applying softmax to the masked attention score
+
+attention_weights = F.softmax(masked_attention_score, dim=-1)
+print("Attention weights: \n",attention_weights)
+
