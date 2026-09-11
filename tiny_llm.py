@@ -69,3 +69,15 @@ token_embedding = embedding(x)
 print(x)
 print(token_embedding)
 print(token_embedding.shape)
+
+pos_id = torch.arange(block_size)
+
+pos_emb = nn.Embedding(block_size,n_embd)
+
+position_embeddings = pos_emb(pos_id)
+
+final_emb = token_embedding + position_embeddings
+
+print(token_embedding.shape)
+print(position_embeddings.shape)
+print(final_emb.shape)
