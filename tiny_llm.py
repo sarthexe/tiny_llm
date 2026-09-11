@@ -85,7 +85,8 @@ print("Positional Embedding Shape:",position_embeddings.shape)
 print("Final Embedding Shape:",final_emb.shape)
 
 #self attention
-head_size = 16
+num_heads = 4
+head_size = n_embd//num_heads
 query = nn.Linear(n_embd, head_size, bias=False)
 key = nn.Linear(n_embd, head_size, bias=False)
 value = nn.Linear(n_embd, head_size, bias=False)
@@ -167,6 +168,25 @@ res = head(final_emb)
 
 print("res: ",res)
 print("res's shape: ",res.shape)
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, num_heads,head_size,n_embd):
+        super().__init__()
+        self.heads = nn.ModuleList([
+            Head(head_size,n_embd)
+            for _ in range(num_heads)
+        ])
+
+
+    def forward(self,x):
+        outputs = [
+            head(x)
+            for head in self.heads
+        ]
+
+        final = torch.cat(outputs, dim=1)
+
+        return final
 
 
 
