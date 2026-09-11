@@ -100,3 +100,8 @@ print("K:",k.shape)
 print("V:",v.shape)
 
 
+#attention score = Q * K Transpose
+attention_score = q@k.T
+
+print("Attention Score: \n",attention_score)
+print("Attention Score's Shape: ",attention_score.shape)
