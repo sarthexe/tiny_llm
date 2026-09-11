@@ -124,3 +124,9 @@ print("masked attention score: \n", masked_attention_score)
 attention_weights = F.softmax(masked_attention_score, dim=-1)
 print("Attention weights: \n",attention_weights)
 
+
+#Single attention head's output 
+attention_output = attention_weights @ v
+
+print("Attention Output: \n", attention_output)
+print("Attention Output's shape: \n", attention_output.shape)
