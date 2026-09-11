@@ -64,6 +64,8 @@ n_embd = 16
 
 embedding = nn.Embedding(vocab_size,n_embd)
 
+token_embedding = embedding(x)
+
 print(x)
-print(embedding(x))
-print(embedding(x).shape)
+print(token_embedding)
+print(token_embedding.shape)
