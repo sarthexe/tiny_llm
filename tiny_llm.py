@@ -111,3 +111,11 @@ causal_mask = torch.tril(torch.ones(block_size,block_size))
 
 print("causal mask: ",causal_mask)
 print("causal mask's shape: ",causal_mask.shape)
+
+#masked attention score 
+masked_attention_score = attention_score.masked_fill(
+    causal_mask == 0,
+    float('-inf')
+)
+
+print("masked attention score: \n", masked_attention_score)
