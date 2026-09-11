@@ -101,7 +101,7 @@ print("V:",v.shape)
 
 
 #attention score = Q * K Transpose
-attention_score = q@k.T
+attention_score = (q@k.T)/head_size**0.5 
 
 print("Attention Score: \n",attention_score)
 print("Attention Score's Shape: ",attention_score.shape)
