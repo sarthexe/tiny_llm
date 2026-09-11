@@ -135,8 +135,40 @@ print("Attention Output's shape: \n", attention_output.shape)
 class Head(nn.Module):
     def __init__(self, head_size,n_embd):
         super().__init__()
+        self.head_size = head_size
         self.key = nn.Linear(n_embd, head_size,bias=False)
         self.query = nn.Linear(n_embd, head_size,bias=False)
         self.value = nn.Linear(n_embd, head_size,bias=False)
+        self.register_buffer(
+            "causal_mask",
+            torch.tril(torch.ones(block_size,block_size))
+        )
 
-        
+    def forward(self,x):
+        q = self.query(x)
+        k = self.key(x)
+        v = self.value(x)
+
+        attention_score = (q@k.T) / (self.head_size**0.5)
+        masked_attention_score = attention_score.masked_fill(
+            self.causal_mask == 0,
+            float('-inf')
+        )
+        attention_weights = F.softmax(masked_attention_score,dim=-1)
+        output = attention_weights @ v
+
+        return output
+
+
+
+head = Head(head_size,n_embd)
+
+res = head(final_emb)
+
+print("res: ",res)
+print("res's shape: ",res.shape)
+
+
+
+
+    
