@@ -105,3 +105,9 @@ attention_score = q@k.T
 
 print("Attention Score: \n",attention_score)
 print("Attention Score's Shape: ",attention_score.shape)
+
+#causal mask
+causal_mask = torch.tril(torch.ones(block_size,block_size))
+
+print("causal mask: ",causal_mask)
+print("causal mask's shape: ",causal_mask.shape)
