@@ -130,3 +130,13 @@ attention_output = attention_weights @ v
 
 print("Attention Output: \n", attention_output)
 print("Attention Output's shape: \n", attention_output.shape)
+
+
+class Head(nn.Module):
+    def __init__(self, head_size,n_embd):
+        super().__init__()
+        self.key = nn.Linear(n_embd, head_size,bias=False)
+        self.query = nn.Linear(n_embd, head_size,bias=False)
+        self.value = nn.Linear(n_embd, head_size,bias=False)
+
+        
