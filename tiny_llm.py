@@ -8,240 +8,328 @@ the dog sat on the floor.
 the cat likes the dog.
 """
 
-# 1. Create our vocabulary
+# make the vocabulary
 chars = sorted(list(set(text)))
 
 print("Vocabulary:", chars)
 print("Vocabulary size:", len(chars))
 
-# 2. Map characters -> integers
-stoi = {ch: i for i, ch in enumerate(chars)}
-
-# 3. Map integers -> characters
-itos = {i: ch for i, ch in enumerate(chars)}
-
-# 4. Tokenize the text
-encoded = [stoi[ch] for ch in text]
-
-print("Original:")
-print(text)
-
-print("Encoded:")
-print(encoded)
-
-# 5. Convert to a PyTorch tensor
-data = torch.tensor(encoded, dtype=torch.long)
-
-print("Tensor:")
-print(data)
-
-
-block_size = 8
-
-x = data[:block_size]
-
-y = data[1:block_size+1]
-
-print("Input:", x)
-print("Target:", y)
-
-
-for i,_ in enumerate(x):
-    ans = x[:i+1]
-    dec_ans = ''.join(itos[token.item()] for token in ans)
-
-    tar = y[i]
-    dec_tar = itos[tar.item()]
-
-    print("Context:", repr(dec_ans))
-    print("Target:", repr(dec_tar))
-    print()
-    
-#embedding layer
 vocab_size = len(chars)
 
+
+# character <-> number mapping
+stoi = {ch: i for i, ch in enumerate(chars)}
+itos = {i: ch for i, ch in enumerate(chars)}
+
+
+# convert the text into token IDs
+encoded = [stoi[ch] for ch in text]
+
+data = torch.tensor(encoded, dtype=torch.long)
+
+
+# model settings
+block_size = 8
+batch_size = 4
+
 n_embd = 16
-
-embedding = nn.Embedding(vocab_size,n_embd)
-
-token_embedding = embedding(x)
-
-# print(x)
-# print(token_embedding)
-# print(token_embedding.shape)
-
-#positional embeddings
-pos_id = torch.arange(block_size)
-
-pos_emb = nn.Embedding(block_size,n_embd)
-
-position_embeddings = pos_emb(pos_id)
-
-#final embedding  =  tokens embedding + positional Embeddings
-final_emb = token_embedding + position_embeddings
-
-# print("Token Embedding Shape:" ,token_embedding.shape)
-# print("Positional Embedding Shape:",position_embeddings.shape)
-# print("Final Embedding Shape:",final_emb.shape)
-
-#self attention
 num_heads = 4
-head_size = n_embd//num_heads
-query = nn.Linear(n_embd, head_size, bias=False)
-key = nn.Linear(n_embd, head_size, bias=False)
-value = nn.Linear(n_embd, head_size, bias=False)
+
+learning_rate = 0.001
+num_steps = 300
 
 
-q = query(final_emb)
-k = key(final_emb)
-v = value(final_emb)
-
-print("Q:",q.shape)
-print("K:",k.shape)
-print("V:",v.shape)
-
-
-#attention score = Q * K Transpose
-attention_score = (q@k.T)/head_size**0.5 
-
-print("Attention Score: \n",attention_score)
-print("Attention Score's Shape: ",attention_score.shape)
-
-#causal mask
-causal_mask = torch.tril(torch.ones(block_size,block_size))
-
-print("causal mask: ",causal_mask)
-print("causal mask's shape: ",causal_mask.shape)
-
-#masked attention score 
-masked_attention_score = attention_score.masked_fill(
-    causal_mask == 0,
-    float('-inf')
-)
-print("masked attention score: \n", masked_attention_score)
-
-#Applying softmax to the masked attention score
-
-attention_weights = F.softmax(masked_attention_score, dim=-1)
-print("Attention weights: \n",attention_weights)
-
-
-#Single attention head's output 
-attention_output = attention_weights @ v
-
-print("Attention Output: \n", attention_output)
-print("Attention Output's shape: \n", attention_output.shape)
-
-
+# one attention head
 class Head(nn.Module):
-    def __init__(self, head_size,n_embd): 
+
+    def __init__(self, head_size, n_embd):
         super().__init__()
+
         self.head_size = head_size
-        self.key = nn.Linear(n_embd, head_size,bias=False)
-        self.query = nn.Linear(n_embd, head_size,bias=False)
-        self.value = nn.Linear(n_embd, head_size,bias=False)
-        self.register_buffer(
-            "causal_mask",
-            torch.tril(torch.ones(block_size,block_size))
+
+        self.key = nn.Linear(
+            n_embd,
+            head_size,
+            bias=False
         )
 
-    def forward(self,x):
+        self.query = nn.Linear(
+            n_embd,
+            head_size,
+            bias=False
+        )
+
+        self.value = nn.Linear(
+            n_embd,
+            head_size,
+            bias=False
+        )
+
+        # prevents tokens from looking into the future
+        self.register_buffer(
+            "causal_mask",
+            torch.tril(
+                torch.ones(block_size, block_size)
+            )
+        )
+
+
+    def forward(self, x):
+
+        B, T, C = x.shape
+
         q = self.query(x)
         k = self.key(x)
         v = self.value(x)
 
-        attention_score = (q@k.T) / (self.head_size**0.5)
+        # calculate attention scores
+        attention_score = (
+            q @ k.transpose(-2, -1)
+        ) / (self.head_size ** 0.5)
+
+        # hide future tokens
         masked_attention_score = attention_score.masked_fill(
-            self.causal_mask == 0,
-            float('-inf')
+            self.causal_mask[:T, :T] == 0,
+            float("-inf")
         )
-        attention_weights = F.softmax(masked_attention_score,dim=-1)
+
+        # convert scores into probabilities
+        attention_weights = F.softmax(
+            masked_attention_score,
+            dim=-1
+        )
+
+        # combine the values using attention
         output = attention_weights @ v
 
         return output
 
 
-
-head = Head(head_size,n_embd)
-
-res = head(final_emb)
-
-print("res: ",res)
-print("res's shape: ",res.shape)
-
+# combine multiple attention heads
 class MultiHeadAttention(nn.Module):
-    def __init__(self, num_heads,head_size,n_embd):
+
+    def __init__(
+        self,
+        num_heads,
+        head_size,
+        n_embd
+    ):
         super().__init__()
+
         self.heads = nn.ModuleList([
-            Head(head_size,n_embd)
+            Head(head_size, n_embd)
             for _ in range(num_heads)
         ])
 
 
-    def forward(self,x):
+    def forward(self, x):
+
         outputs = [
             head(x)
             for head in self.heads
         ]
 
-        final = torch.cat(outputs, dim=1)
-
-        return final
-
+        # combine all the heads
+        return torch.cat(outputs, dim=-1)
 
 
-
+# regular neural network after attention
 class FeedForward(nn.Module):
+
     def __init__(self, n_embd):
         super().__init__()
+
         self.net = nn.Sequential(
-            nn.Linear(n_embd,4*n_embd),
+
+            nn.Linear(
+                n_embd,
+                4 * n_embd
+            ),
+
             nn.ReLU(),
-            nn.Linear(4*n_embd,n_embd)
+
+            nn.Linear(
+                4 * n_embd,
+                n_embd
+            )
         )
 
-    def forward(self,x):
+
+    def forward(self, x):
+
         return self.net(x)
 
+
+# one transformer block
 class Block(nn.Module):
-    def __init__(self, n_embd , num_heads):
+
+    def __init__(self, n_embd, num_heads):
         super().__init__()
-        head_size = n_embd//num_heads
-        self.attention = MultiHeadAttention(num_heads,head_size,n_embd)
+
+        head_size = n_embd // num_heads
+
+        self.attention = MultiHeadAttention(
+            num_heads,
+            head_size,
+            n_embd
+        )
+
         self.feed_forward = FeedForward(n_embd)
 
 
-    def forward(self,x):
+    def forward(self, x):
+
+        # residual connection around attention
         x = x + self.attention(x)
+
+        # residual connection around feed forward
         x = x + self.feed_forward(x)
 
         return x
 
 
+# our tiny language model
 class TinyLLM(nn.Module):
-    def __init__(self, vocab_size,n_embd,num_heads):
+
+    def __init__(
+        self,
+        vocab_size,
+        n_embd,
+        num_heads
+    ):
         super().__init__()
-        self.block_size = 8
-        self.token_embedding = nn.Embedding(vocab_size,n_embd)
-        self.position_embedding = nn.Embedding(self.block_size,n_embd)
-        self.transformer = Block(n_embd,num_heads) 
-        self.lm_head = nn.Linear(n_embd,vocab_size)
+
+        self.token_embedding = nn.Embedding(
+            vocab_size,
+            n_embd
+        )
+
+        self.position_embedding = nn.Embedding(
+            block_size,
+            n_embd
+        )
+
+        self.transformer = Block(
+            n_embd,
+            num_heads
+        )
+
+        # turns embeddings into predictions for each character
+        self.lm_head = nn.Linear(
+            n_embd,
+            vocab_size
+        )
 
 
-    def forward(self,x):
+    def forward(self, x):
+
+        B, T = x.shape
+
+        # get token embeddings
         token_emb = self.token_embedding(x)
-        pos_id = torch.arange(len(x),device=x.device)
+
+        # get position embeddings
+        pos_id = torch.arange(
+            T,
+            device=x.device
+        )
+
         pos_emb = self.position_embedding(pos_id)
+
+        # combine token and position information
         final_emb = token_emb + pos_emb
 
+        # run through the transformer
         trans = self.transformer(final_emb)
+
+        # predict the next character
         logits = self.lm_head(trans)
 
         return logits
 
 
-model = TinyLLM(vocab_size,n_embd,num_heads)
-logits = model(x)
+# create the model
+model = TinyLLM(
+    vocab_size,
+    n_embd,
+    num_heads
+)
 
-print("Logits: \n",logits)
-print("Logits shape: \n",logits.shape)
+print("\nNumber of parameters:")
+
+print(
+    sum(
+        p.numel()
+        for p in model.parameters()
+    )
+)
+
+
+# optimizer
+optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=learning_rate
+)
+
+
+# train the model
+for i in range(num_steps):
+
+    # pick random places in the text
+    starts = torch.randint(
+        0,
+        len(data) - block_size,
+        (batch_size,)
+    )
+
+    # create input sequences
+    x_chunks = [
+        data[start:start + block_size]
+        for start in starts
+    ]
+
+    # same sequence but shifted by one character
+    y_chunks = [
+        data[start + 1:start + block_size + 1]
+        for start in starts
+    ]
+
+    # turn them into batches
+    x = torch.stack(x_chunks)
+    y = torch.stack(y_chunks)
+
+    # reset gradients
+    optimizer.zero_grad()
+
+    # get predictions
+    logits = model(x)
+
+    B, T = x.shape
+
+    # flatten so cross entropy can calculate the loss
+    logits = logits.reshape(
+        B * T,
+        vocab_size
+    )
+
+    targets = y.reshape(B * T)
+
+    # see how wrong the predictions are
+    loss = F.cross_entropy(
+        logits,
+        targets
+    )
+
+    # calculate gradients
+    loss.backward()
+
+    # update the model
+    optimizer.step()
+
+    if i % 50 == 0:
+        print(
+            f"Step {i}: Loss = {loss.item():.4f}"
+        )
+
+
+print("\nTraining finished!")
