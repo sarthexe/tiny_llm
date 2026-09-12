@@ -36,7 +36,7 @@ n_embd = 16
 num_heads = 4
 
 learning_rate = 0.001
-num_steps = 300
+num_steps = 5001
 
 
 # one attention head
@@ -333,3 +333,38 @@ for i in range(num_steps):
 
 
 print("\nTraining finished!")
+
+context = torch.tensor(
+    [[stoi["t"]]],
+    dtype=torch.long
+)
+
+for _ in range(50):
+
+    # only give model the last 8 tokens
+    context_for_model = context[:,-block_size:]
+
+    #get predictions
+    logits = model(context_for_model)
+    # only use the prediction from the last position
+    logits = logits[:,-1,:]
+
+    #convert the logits into probabilities
+    probs = F.softmax(logits,dim=-1)
+
+    # randomly sample the next token
+    next_token = torch.multinomial(probs, num_samples=1) #multinomial means to pick a token according to these probs
+
+    # add it to your full context
+    context = torch.cat(
+        (context,next_token),
+        dim=1
+    )
+
+
+generated_text = ''.join(
+    itos[token.item()]
+    for token in context[0]
+)
+
+print(generated_text)
