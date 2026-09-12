@@ -175,15 +175,17 @@ class Block(nn.Module):
         )
 
         self.feed_forward = FeedForward(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
 
 
     def forward(self, x):
 
-        # residual connection around attention
-        x = x + self.attention(x)
+        # normalise first then attention then residual connection 
+        x = x + self.attention(self.ln1(x))
 
-        # residual connection around feed forward
-        x = x + self.feed_forward(x)
+        # normalise first then feed forward then residual connection 
+        x = x + self.feed_forward(self.ln2(x))
 
         return x
 
@@ -195,7 +197,8 @@ class TinyLLM(nn.Module):
         self,
         vocab_size,
         n_embd,
-        num_heads
+        num_heads,
+        num_layers=3
     ):
         super().__init__()
 
@@ -209,9 +212,11 @@ class TinyLLM(nn.Module):
             n_embd
         )
 
-        self.transformer = Block(
-            n_embd,
-            num_heads
+        self.transformer = nn.Sequential(
+            *[
+                Block(n_embd,num_heads)
+                for _ in range(num_layers)
+            ]
         )
 
         # turns embeddings into predictions for each character
@@ -335,14 +340,15 @@ for i in range(num_steps):
 print("\nTraining finished!")
 
 context = torch.tensor(
-    [[stoi["t"]]],
+    [[stoi["d"]]],
     dtype=torch.long
 )
 
-for _ in range(50):
+#autoregressive generation
+for _ in range(200):
 
     # only give model the last 8 tokens
-    context_for_model = context[:,-block_size:]
+    context_for_model = context[:,-block_size:] #  : means take all batches -block_size means start block_size positions from the end and take everything until the end.
 
     #get predictions
     logits = model(context_for_model)
