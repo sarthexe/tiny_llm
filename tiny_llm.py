@@ -65,6 +65,8 @@ class Head(nn.Module):
             bias=False
         )
 
+        self.dropout = nn.Dropout(0.2) 
+
         # prevents tokens from looking into the future
         self.register_buffer(
             "causal_mask",
@@ -98,6 +100,8 @@ class Head(nn.Module):
             masked_attention_score,
             dim=-1
         )
+
+        attention_weights = self.dropout(attention_weights)
 
         # combine the values using attention
         output = attention_weights @ v
@@ -276,7 +280,8 @@ optimizer = torch.optim.Adam(
     lr=learning_rate
 )
 
-
+#dropout enabled
+model.train()
 # train the model
 for i in range(num_steps):
 
@@ -340,37 +345,42 @@ for i in range(num_steps):
 print("\nTraining finished!")
 
 context = torch.tensor(
-    [[stoi["d"]]],
+    [[stoi["t"]]],
     dtype=torch.long
 )
 
-#autoregressive generation
-for _ in range(200):
+#dropout disabled
+model.eval()
+with torch.no_grad():
+    #autoregressive generation
+    for _ in range(200):
 
-    # only give model the last 8 tokens
-    context_for_model = context[:,-block_size:] #  : means take all batches -block_size means start block_size positions from the end and take everything until the end.
+        # only give model the last 8 tokens
+        context_for_model = context[:,-block_size:] #  : means take all batches -block_size means start block_size positions from the end and take everything until the end.
 
-    #get predictions
-    logits = model(context_for_model)
-    # only use the prediction from the last position
-    logits = logits[:,-1,:]
+        #get predictions
+        logits = model(context_for_model)
+        # only use the prediction from the last position
+        logits = logits[:,-1,:]
 
-    #convert the logits into probabilities
-    probs = F.softmax(logits,dim=-1)
+        #convert the logits into probabilities
+        probs = F.softmax(logits,dim=-1)
 
-    # randomly sample the next token
-    next_token = torch.multinomial(probs, num_samples=1) #multinomial means to pick a token according to these probs
+        # randomly sample the next token
+        next_token = torch.multinomial(probs, num_samples=1) #multinomial means to pick a token according to these probs
 
-    # add it to your full context
-    context = torch.cat(
-        (context,next_token),
-        dim=1
+        # add it to your full context
+        context = torch.cat(
+            (context,next_token),
+            dim=1
+        )
+
+
+    generated_text = ''.join(
+        itos[token.item()]
+        for token in context[0]
     )
 
+    print(generated_text)
 
-generated_text = ''.join(
-    itos[token.item()]
-    for token in context[0]
-)
 
-print(generated_text)
