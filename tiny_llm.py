@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-text = """
-the cat sat on the mat.
-the dog sat on the floor.
-the cat likes the dog.
-"""
+with open("input.txt", "r", encoding="utf-8") as f:
+    text = f.read()
+
+print(text[:500])
+print("\nTotal characters:", len(text))
 
 # make the vocabulary
 chars = sorted(list(set(text)))
@@ -27,12 +27,20 @@ encoded = [stoi[ch] for ch in text]
 
 data = torch.tensor(encoded, dtype=torch.long)
 
+split_index = int(0.9 * len(data))
 
+train_data = data[:split_index]
+val_data = data[split_index:]
+
+print("Total characters:", len(text))
+print("Vocabulary size:", vocab_size)
+print("Train size:", len(train_data))
+print("Validation size:", len(val_data))
 # model settings
-block_size = 8
-batch_size = 4
+block_size = 6
+batch_size = 32
 
-n_embd = 16
+n_embd = 64
 num_heads = 4
 
 learning_rate = 0.001
@@ -125,6 +133,11 @@ class MultiHeadAttention(nn.Module):
             for _ in range(num_heads)
         ])
 
+        self.proj = nn.Linear(
+            n_embd,
+            n_embd
+        )
+
 
     def forward(self, x):
 
@@ -133,8 +146,15 @@ class MultiHeadAttention(nn.Module):
             for head in self.heads
         ]
 
-        # combine all the heads
-        return torch.cat(outputs, dim=-1)
+        out = torch.cat(
+            outputs,
+            dim=-1
+        )
+
+        #mix information from all heads
+        out = self.proj(out)
+        
+        return out
 
 
 # regular neural network after attention
@@ -150,7 +170,7 @@ class FeedForward(nn.Module):
                 4 * n_embd
             ),
 
-            nn.ReLU(),
+            nn.GELU(),
 
             nn.Linear(
                 4 * n_embd,
@@ -202,7 +222,7 @@ class TinyLLM(nn.Module):
         vocab_size,
         n_embd,
         num_heads,
-        num_layers=3
+        num_layers=4
     ):
         super().__init__()
 
@@ -273,6 +293,13 @@ print(
     )
 )
 
+print("\nParameters by layer:\n")
+
+for name, param in model.named_parameters():
+    print(
+        f"{name:60} {param.numel():>8}"
+    )
+
 
 # optimizer
 optimizer = torch.optim.Adam(
@@ -280,33 +307,73 @@ optimizer = torch.optim.Adam(
     lr=learning_rate
 )
 
-#dropout enabled
-model.train()
-# train the model
-for i in range(num_steps):
-
-    # pick random places in the text
+def get_batch(data_source):
     starts = torch.randint(
         0,
-        len(data) - block_size,
+        len(data_source) - block_size,
         (batch_size,)
     )
 
-    # create input sequences
-    x_chunks = [
-        data[start:start + block_size]
+    x = torch.stack([
+        data_source[start:start + block_size]
         for start in starts
-    ]
+    ])
 
-    # same sequence but shifted by one character
-    y_chunks = [
-        data[start + 1:start + block_size + 1]
+    y = torch.stack([
+        data_source[start + 1:start + block_size + 1]
         for start in starts
-    ]
+    ])
 
-    # turn them into batches
-    x = torch.stack(x_chunks)
-    y = torch.stack(y_chunks)
+    return x, y
+
+
+def estimate_loss():
+    losses = {}
+
+    # evaluate both datasets
+    for split,data_source in  [
+        ("train", train_data),
+        ("val",val_data)
+    ]:
+        model.eval()
+        split_losses=[]
+        with torch.no_grad():
+            for _ in range(20):
+                x,y = get_batch(data_source)
+
+                logits = model(x)
+
+                B,T = x.shape
+
+                logits = logits.reshape(
+                    B*T,
+                    vocab_size
+                )
+
+                targets = y.reshape(B*T)
+
+                loss = F.cross_entropy(
+                    logits,
+                    targets
+                )
+
+                split_losses.append(loss.item())
+
+        losses[split] = sum(split_losses)/len(split_losses)
+
+    model.train()
+
+    return losses
+
+
+
+#dropout enabled
+model.train()
+
+# train the model
+for i in range(num_steps):
+
+    x, y = get_batch(train_data)
 
     # reset gradients
     optimizer.zero_grad()
@@ -336,9 +403,14 @@ for i in range(num_steps):
     # update the model
     optimizer.step()
 
-    if i % 50 == 0:
+    if i % 500 == 0:
+
+        losses = estimate_loss()
+
         print(
-            f"Step {i}: Loss = {loss.item():.4f}"
+            f"Step {i} | "
+            f"Train Loss: {losses['train']:.4f} | "
+            f"Val Loss: {losses['val']:.4f}"
         )
 
 
@@ -352,6 +424,8 @@ context = torch.tensor(
 #dropout disabled
 model.eval()
 with torch.no_grad():
+
+    temperature = 0.8
     #autoregressive generation
     for _ in range(200):
 
@@ -362,6 +436,9 @@ with torch.no_grad():
         logits = model(context_for_model)
         # only use the prediction from the last position
         logits = logits[:,-1,:]
+
+        #control randomness
+        logits = logits/temperature
 
         #convert the logits into probabilities
         probs = F.softmax(logits,dim=-1)
