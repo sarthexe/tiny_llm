@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from model import TinyLLM
+from .model import TinyLLM
 
 
 def generate(
