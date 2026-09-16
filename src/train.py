@@ -1,15 +1,11 @@
 import torch
 import torch.nn.functional as F
 
-from model import TinyLLM
+from .model import TinyLLM
 
 
 def get_batch(data, batch_size, block_size, device):
-    starts = torch.randint(
-        0,
-        len(data) - block_size,
-        (batch_size,)
-    )
+    starts = torch.randint(0, len(data) - block_size, (batch_size,))
 
     x = torch.stack([
         data[start:start + block_size]
@@ -24,16 +20,7 @@ def get_batch(data, batch_size, block_size, device):
     return x.to(device), y.to(device)
 
 
-def estimate_loss(
-    model,
-    train_data,
-    val_data,
-    batch_size,
-    block_size,
-    vocab_size,
-    device,
-    eval_iters=20
-):
+def estimate_loss(model, train_data, val_data, batch_size, block_size, vocab_size, device, eval_iters=20):
     losses = {}
     model.eval()
 
@@ -84,29 +71,17 @@ def train_model(
         dropout=dropout
     ).to(device)
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=learning_rate
-    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     print(f"Device: {device}")
-    print(
-        "Parameters:",
-        sum(p.numel() for p in model.parameters())
-    )
+    print("Parameters:", sum(p.numel() for p in model.parameters()))
 
     model.train()
 
     for step in range(num_steps):
-        x, y = get_batch(
-            train_data,
-            batch_size,
-            block_size,
-            device
-        )
+        x, y = get_batch(train_data, batch_size, block_size, device)
 
         optimizer.zero_grad()
-
         logits = model(x)
 
         B, T = x.shape
@@ -134,7 +109,7 @@ def train_model(
                 f"Val Loss: {losses['val']:.4f}"
             )
 
-    return model
+    return model, optimizer
 
 
 def save_checkpoint(model, optimizer, path, config):
@@ -146,7 +121,3 @@ def save_checkpoint(model, optimizer, path, config):
         },
         path
     )
-
-
-if __name__ == "__main__":
-    print("Import train_model() and provide tokenized train/validation data.")
