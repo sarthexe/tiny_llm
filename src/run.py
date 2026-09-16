@@ -25,11 +25,11 @@ def main():
     text = load_text(DATA_PATH)
 
     print("Training tokenizer...")
-    tokenizer = ByteBPETokenizer().train(text[:100_000], NUM_MERGES)
+    tokenizer = ByteBPETokenizer()
+    tokenizer.train(text[:100_000], NUM_MERGES)
 
     data = encode_text(text, tokenizer)
     train_data, val_data = split_data(data)
-
     vocab_size = len(tokenizer.itos)
 
     model, optimizer = train_model(
